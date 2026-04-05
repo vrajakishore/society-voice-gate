@@ -27,22 +27,22 @@ The system is built on an **agentic architecture** using Azure AI Foundry's Voic
 
 ```
   ┌──────────────┐
-  │  Resident's   │
-  │    Phone      │
+  │  Resident's  │
+  │    Phone     │
   └──────┬───────┘
          │  PSTN call
          ▼
   ┌──────────────────────────────────┐
   │  Azure Communication Services    │
   │  (Phone Number + Call Automation)│
-  └──────┬──────────────┬───────────┘
+  └──────┬───────────────┬───────────┘
          │ EventGrid     │ Bidirectional
          │ webhook       │ audio WebSocket
          ▼               ▼
   ┌──────────────────────────────────┐      ┌──────────────────────────┐
   │  FastAPI Backend (port 8000)     │      │  Azure AI Foundry        │
   │                                  │◄────►│  Voice Live API          │
-  │  /api/incoming-call  (answer)    │ WSS  │  (ASR + GPT + TTS)      │
+  │  /api/incoming-call  (answer)    │ WSS  │  (ASR + GPT + TTS)       │
   │  /api/call-events    (lifecycle) │      │  model: gpt-4o-mini      │
   │  /ws/media           (audio)     │      └──────────────────────────┘
   │                                  │
