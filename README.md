@@ -98,6 +98,8 @@ The system uses two distinct prompts:
 
 Both prompts live in `backend/app/services/voice_service.py` and can be edited without touching any other code.
 
+![Agent Playground — voice mode with instructions and starter prompts](screenshots/agent-preview-final.png)
+
 ---
 
 ## Prerequisites
@@ -165,6 +167,8 @@ In the Azure Portal:
    - **Event type**: `Microsoft.Communication.IncomingCall`
    - **Endpoint type**: Webhook
    - **Endpoint URL**: `https://<YOUR_TUNNEL_URL>/api/incoming-call`
+
+![ACS EventGrid subscription — incoming call events delivered to webhook](screenshots/acs-event-dashboard.png)
 
 ### Step 5 — Configure the ACS callback URL
 
@@ -276,6 +280,8 @@ curl http://localhost:5173/api/tickets   # → [] (proxy works)
 
 Open `http://localhost:5173` in a browser to see the admin dashboard.
 
+![Complaint Inbox — ticket list with summary cards](screenshots/ticket-dashboard.png)
+
 ---
 
 ## Test Scenarios
@@ -323,6 +329,8 @@ Open `http://localhost:5173` in a browser to see the admin dashboard.
 4. Within 5–10 seconds, check the dashboard at `http://localhost:5173`
 5. The ticket should appear with the correct category, priority, and a clean description
 
+![Ticket detail slide-over with full call transcript](screenshots/ticket-details.png)
+
 ---
 
 ## Troubleshooting
@@ -337,19 +345,6 @@ Open `http://localhost:5173` in a browser to see the admin dashboard.
 | **Call rings but agent doesn't speak** | WebSocket to Voice Live failed to connect | Check backend logs for connection errors; verify `COGNITIVE_SERVICES_ENDPOINT` |
 | **Frontend shows empty dashboard** | Backend not running or proxy misconfigured | Verify `curl http://localhost:8000/api/tickets` returns `[]` |
 | **EventGrid webhook validation fails** | ACS can't reach your tunnel URL | Ensure Dev Tunnel is hosting and the URL matches `CALLBACK_HOST` |
-
----
-
-## Screenshots
-
-> **Add screenshots here later.** Place images in the `screenshots/` folder.
-
-| Screenshot | Path |
-|---|---|
-| Architecture diagram | `screenshots/architecture.png` |
-| Agent conversation flow | `screenshots/agent-flow.png` |
-| Admin dashboard — ticket list | `screenshots/dashboard-tickets.png` |
-| Ticket detail view | `screenshots/ticket-detail.png` |
 
 ---
 
