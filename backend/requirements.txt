@@ -1,0 +1,9 @@
+azure-communication-callautomation==1.4.0
+azure-identity==1.20.0
+openai==1.77.0
+websockets==14.2
+fastapi==0.115.12
+uvicorn[standard]==0.34.2
+pydantic==2.11.3
+pydantic-settings==2.8.1
+python-dotenv==1.1.0

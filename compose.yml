@@ -1,0 +1,38 @@
+# podman-compose up --build   OR   docker compose up --build
+#
+# Auth modes (set in .env):
+#   Local dev  — az login on host, mount ~/.azure (default below)
+#   Service Principal — set AZURE_CLIENT_ID / AZURE_CLIENT_SECRET / AZURE_TENANT_ID in .env
+#   Managed Identity  — remove both volume mounts, deploy to Azure Container Apps / AKS
+services:
+  backend:
+    build:
+      context: .
+      dockerfile: Containerfile
+    ports:
+      - "8000:8000"
+    env_file: .env
+    volumes:
+      - ./data:/app/data
+      # Mount host Azure CLI token cache so DefaultAzureCredential works with `az login`
+      # Comment this out when using a Service Principal or Managed Identity
+      - ${HOME}/.azure:/home/appuser/.azure:ro
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    ports:
+      - "5173:5173"
+    environment:
+      - VITE_API_URL=http://backend:8000
+    depends_on:
+      backend:
+        condition: service_healthy
+    restart: unless-stopped
