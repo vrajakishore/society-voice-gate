@@ -11,3 +11,4 @@ backend/app/data/tickets.json
 data/
 DevTunnels/
 DevTunnels/
+*.md
