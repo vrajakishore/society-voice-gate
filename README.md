@@ -98,7 +98,7 @@ The system uses two distinct prompts:
 
 Both prompts live in `backend/app/services/voice_service.py` and can be edited without touching any other code.
 
-![Agent Playground — voice mode with instructions and starter prompts](screenshots/agent-flow.png)
+![Agent Playground — voice mode with instructions and starter prompts](screenshots/agent-preview-final.png)
 
 ---
 
@@ -280,7 +280,7 @@ curl http://localhost:5173/api/tickets   # → [] (proxy works)
 
 Open `http://localhost:5173` in a browser to see the admin dashboard.
 
-![Complaint Inbox — ticket list with summary cards](screenshots/dashboard-tickets.png)
+![Complaint Inbox — ticket list with summary cards](screenshots/ticket-dashboard.png)
 
 ---
 
@@ -329,7 +329,7 @@ Open `http://localhost:5173` in a browser to see the admin dashboard.
 4. Within 5–10 seconds, check the dashboard at `http://localhost:5173`
 5. The ticket should appear with the correct category, priority, and a clean description
 
-![Ticket detail slide-over with full call transcript](screenshots/ticket-detail.png)
+![Ticket detail slide-over with full call transcript](screenshots/ticket-details.png)
 
 ---
 
