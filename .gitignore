@@ -1,4 +1,8 @@
+# Secrets & auth
 .env
+.env.local
+
+# Python
 .venv/
 __pycache__/
 *.pyc
@@ -7,8 +11,14 @@ __pycache__/
 dist/
 build/
 .pytest_cache/
+
+# Node
+node_modules/
+
+# Ticket data (contains PII from calls)
 backend/app/data/tickets.json
+backend/data/
 data/
+
+# Dev Tunnel token caches (contain OAuth tokens)
 DevTunnels/
-DevTunnels/
-*.md

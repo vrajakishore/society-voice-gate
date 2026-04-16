@@ -11,6 +11,7 @@ import asyncio
 import json
 import logging
 
+import requests as http_requests
 import websockets
 from azure.communication.callautomation import (
     AudioFormat,
@@ -18,6 +19,7 @@ from azure.communication.callautomation import (
     MediaStreamingAudioChannelType,
     MediaStreamingContentType,
     MediaStreamingOptions,
+    PhoneNumberIdentifier,
     StreamingTransportType,
 )
 from openai import AzureOpenAI
@@ -52,6 +54,53 @@ _pending_call_ids: list[str] = []
 
 _call_client: CallAutomationClient | None = None
 _oai_client: AzureOpenAI | None = None
+
+# Cached Foundry agent config (fetched once at first call)
+_agent_config: dict | None = None
+
+
+def _fetch_agent_config() -> dict:
+    """Fetch agent instructions and voice-live config from Foundry.
+
+    Returns dict with 'instructions', 'voice_live_session' keys.
+    """
+    global _agent_config
+    if _agent_config is not None:
+        return _agent_config
+
+    project = settings.foundry_project_endpoint.rstrip("/")
+    agent = settings.foundry_agent_name
+    url = f"{project}/agents/{agent}?api-version=2025-05-15-preview"
+
+    token = get_credential().get_token("https://ai.azure.com/.default")
+    headers = {"Authorization": f"Bearer {token.token}"}
+
+    try:
+        resp = http_requests.get(url, headers=headers, timeout=15)
+        resp.raise_for_status()
+        data = resp.json()
+        latest = data.get("versions", {}).get("latest", {})
+        defn = latest.get("definition", {})
+        meta = latest.get("metadata", {})
+
+        instructions = defn.get("instructions", "")
+        vl_raw = meta.get("microsoft.voice-live.configuration", "{}")
+        vl_session = json.loads(vl_raw).get("session", {})
+
+        _agent_config = {
+            "instructions": instructions,
+            "voice_live_session": vl_session,
+        }
+        logger.info(
+            "Fetched Foundry agent config: agent=%s instructions_len=%d voice=%s",
+            agent, len(instructions),
+            vl_session.get("voice", {}).get("name", "default"),
+        )
+    except Exception:
+        logger.exception("Failed to fetch Foundry agent config — using defaults")
+        _agent_config = {"instructions": "", "voice_live_session": {}}
+
+    return _agent_config
 
 
 def _get_call_client() -> CallAutomationClient:
@@ -92,6 +141,39 @@ def answer_call(incoming_call_context: str, callback_uri: str, websocket_url: st
     _transcripts[call_id] = []
     _pending_call_ids.append(call_id)
     logger.info("Answered call: %s", call_id)
+    return call_id
+
+
+def place_outbound_call(target_phone: str) -> str:
+    """Place an outbound call to target_phone with media streaming."""
+    host = settings.callback_host
+    callback_uri = f"{host}/api/call-events"
+    ws_url = host.replace("https://", "wss://").replace("http://", "ws://")
+
+    media_streaming = MediaStreamingOptions(
+        transport_url=f"{ws_url}/ws/media",
+        transport_type=StreamingTransportType.WEBSOCKET,
+        content_type=MediaStreamingContentType.AUDIO,
+        audio_channel_type=MediaStreamingAudioChannelType.MIXED,
+        start_media_streaming=True,
+        enable_bidirectional=True,
+        audio_format=AudioFormat.PCM24_K_MONO,
+    )
+
+    source_phone = PhoneNumberIdentifier(settings.acs_phone_number)
+    target = PhoneNumberIdentifier(target_phone)
+
+    result = _get_call_client().create_call(
+        target_participant=target,
+        source_caller_id_number=source_phone,
+        callback_url=callback_uri,
+        media_streaming=media_streaming,
+    )
+
+    call_id = result.call_connection_id
+    _transcripts[call_id] = []
+    _pending_call_ids.append(call_id)
+    logger.info("Placed outbound call to %s: call_id=%s", target_phone, call_id)
     return call_id
 
 
@@ -149,11 +231,13 @@ async def handle_media_websocket(acs_ws, call_id: str) -> None:
     Bridge audio between ACS WebSocket and Voice Live API.
     Accumulates ASR/TTS transcripts per call_id for later ticket creation.
     """
+    # Build the Voice Live WebSocket URL (no &agent= — we inject config ourselves)
     endpoint = settings.cognitive_services_endpoint.rstrip("/")
     vl_url = (
         f"{endpoint}/voice-live/realtime"
         f"?api-version=2025-05-01-preview&model={settings.voice_live_model}"
-    ).replace("https://", "wss://")
+    )
+    vl_url = vl_url.replace("https://", "wss://")
 
     token = get_credential().get_token("https://cognitiveservices.azure.com/.default")
     headers = {"Authorization": f"Bearer {token.token}"}
@@ -163,9 +247,63 @@ async def handle_media_websocket(acs_ws, call_id: str) -> None:
     async with websockets.connect(vl_url, additional_headers=headers) as vl_ws:
         logger.info("Voice Live connected  call=%s", call_id)
 
-        await vl_ws.send(json.dumps({
-            "type": "session.update",
-            "session": {
+        # Build session.update from Foundry agent config or local defaults
+        if settings.foundry_agent_name and settings.foundry_project_endpoint:
+            agent_cfg = _fetch_agent_config()
+            vl_session = agent_cfg.get("voice_live_session", {})
+
+            session_config: dict = {}
+
+            # Instructions from agent definition
+            if agent_cfg.get("instructions"):
+                session_config["instructions"] = agent_cfg["instructions"]
+            else:
+                session_config["instructions"] = SYSTEM_PROMPT
+
+            # Voice from voice-live metadata
+            voice_cfg = vl_session.get("voice")
+            if voice_cfg:
+                session_config["voice"] = {
+                    k: v for k, v in voice_cfg.items() if v is not None
+                }
+
+            # Turn detection
+            td = vl_session.get("turnDetection")
+            if td:
+                session_config["turn_detection"] = {
+                    k: v for k, v in {
+                        "type": td.get("type", "azure_semantic_vad"),
+                        "remove_filler_words": td.get("removeFillerWords", False),
+                    }.items() if v is not None
+                }
+            else:
+                session_config["turn_detection"] = {
+                    "type": "azure_semantic_vad",
+                    "threshold": 0.3,
+                    "prefix_padding_ms": 200,
+                    "silence_duration_ms": 200,
+                    "remove_filler_words": False,
+                }
+
+            # Audio transcription
+            transcription = vl_session.get("inputAudioTranscription")
+            if transcription:
+                session_config["input_audio_transcription"] = transcription
+
+            # Noise reduction / echo cancellation (use from agent or defaults)
+            nr = vl_session.get("inputAudioNoiseReduction")
+            session_config["input_audio_noise_reduction"] = (
+                nr if nr else {"type": "azure_deep_noise_suppression"}
+            )
+            ec = vl_session.get("inputAudioEchoCancellation")
+            session_config["input_audio_echo_cancellation"] = (
+                ec if ec else {"type": "server_echo_cancellation"}
+            )
+
+            logger.info("Using Foundry agent config: voice=%s", voice_cfg)
+        else:
+            # No Foundry agent — use local instructions and voice
+            session_config = {
                 "instructions": SYSTEM_PROMPT,
                 "turn_detection": {
                     "type": "azure_semantic_vad",
@@ -181,8 +319,9 @@ async def handle_media_websocket(acs_ws, call_id: str) -> None:
                     "type": "azure-standard",
                     "temperature": 0.8,
                 },
-            },
-        }))
+            }
+
+        await vl_ws.send(json.dumps({"type": "session.update", "session": session_config}))
         await vl_ws.send(json.dumps({"type": "response.create"}))
 
         async def acs_to_vl():

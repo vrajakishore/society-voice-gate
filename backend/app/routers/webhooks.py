@@ -29,6 +29,34 @@ router = APIRouter()
 _call_to_caller: dict[str, str] = {}
 
 
+# ── POST /api/callback — outbound call ───────────────────────────────────────
+
+import re
+
+_E164_RE = re.compile(r"^\+[1-9]\d{6,14}$")
+
+
+@router.post("/api/callback")
+async def request_callback(request: Request):
+    """Place an outbound call to a resident's phone number."""
+    body = await request.json()
+    target_phone = (body.get("phone") or "").strip()
+    if not target_phone:
+        return JSONResponse({"error": "phone is required"}, status_code=400)
+    if not _E164_RE.match(target_phone):
+        return JSONResponse({"error": "phone must be E.164 format (e.g. +919876543210)"}, status_code=400)
+    if not settings.acs_phone_number:
+        return JSONResponse({"error": "outbound calling not configured"}, status_code=503)
+
+    try:
+        call_id = voice_service.place_outbound_call(target_phone)
+        _call_to_caller[call_id] = target_phone
+        return JSONResponse({"call_id": call_id, "status": "calling"})
+    except Exception:
+        logger.exception("Failed to place outbound call to %s", target_phone)
+        return JSONResponse({"error": "failed to place call"}, status_code=500)
+
+
 # ── EventGrid handshake helper ───────────────────────────────────────────────
 
 def _validation_code(events: list) -> str | None:

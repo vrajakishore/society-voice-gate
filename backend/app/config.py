@@ -6,10 +6,15 @@ class Settings(BaseSettings):
 
     # Azure Communication Services
     acs_connection_string: str
+    acs_phone_number: str = ""  # E.164 source number for outbound calls
 
     # Azure AI Services — Voice Live API (multi-service AIServices resource)
     cognitive_services_endpoint: str
     voice_live_model: str = "gpt-4o-mini"
+
+    # Foundry Agent — when set, fetches agent instructions & voice config at startup
+    foundry_agent_name: str = ""
+    foundry_project_endpoint: str = ""  # e.g. https://<resource>.services.ai.azure.com/api/projects/<project>
 
     # Azure OpenAI — ticket classification after call ends
     azure_openai_endpoint: str

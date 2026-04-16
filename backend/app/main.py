@@ -4,7 +4,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import settings
-from app.routers import tickets, webhooks
+from app.routers import health, tickets, webhooks
 
 logging.basicConfig(
     level=getattr(logging, settings.log_level.upper(), logging.INFO),
@@ -17,6 +17,8 @@ app = FastAPI(
     description="AI voice agent that answers resident calls and auto-creates maintenance tickets.",
 )
 
+# SECURITY: Wildcard CORS is acceptable for local dev / demo only.
+# For production, restrict to your frontend domain(s).
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -26,6 +28,7 @@ app.add_middleware(
 
 app.include_router(webhooks.router)
 app.include_router(tickets.router)
+app.include_router(health.router)
 
 
 @app.get("/health")
