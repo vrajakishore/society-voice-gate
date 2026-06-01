@@ -22,3 +22,7 @@ data/
 
 # Dev Tunnel token caches (contain OAuth tokens)
 DevTunnels/
+
+# Graphify cache (contains cached GraphQL queries)
+.graphify/*
+graphify-out/
