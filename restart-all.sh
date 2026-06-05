@@ -3,7 +3,6 @@
 set -e
 
 PROJECT=~/society-voice-gate
-TUNNEL_ID="fun-ant-shvprm7"
 TENANT="e6e6c3b7-14a4-4b8a-940e-37cf5d6507c7"
 DEVTUNNEL=~/bin/devtunnel
 
@@ -14,7 +13,7 @@ echo "=== 2/5  Azure login ==="
 az account show -o none 2>/dev/null || az login --use-device-code --tenant "$TENANT"
 
 echo "=== 3/5  Start Dev Tunnel (background) ==="
-nohup "$DEVTUNNEL" host "$TUNNEL_ID" --allow-anonymous > /tmp/devtunnel.log 2>&1 &
+nohup "$DEVTUNNEL" host -p 8000 --protocol http --allow-anonymous > /tmp/devtunnel.log 2>&1 &
 sleep 3
 echo "    Tunnel PID: $!"
 grep -oP 'https://\S+' /tmp/devtunnel.log | head -1 || echo "    (check /tmp/devtunnel.log for URL)"
